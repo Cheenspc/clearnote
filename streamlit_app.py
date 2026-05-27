@@ -13,8 +13,8 @@ import yt_dlp
 
 load_dotenv()
 
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+anthropic_client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
 def split_audio(file_path, chunk_minutes=10):
     audio = AudioSegment.from_file(file_path)
