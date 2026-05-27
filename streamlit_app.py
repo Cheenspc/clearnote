@@ -13,8 +13,14 @@ import yt_dlp
 
 load_dotenv()
 
-openai_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-anthropic_client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+def get_secret(key):
+    try:
+        return st.secrets[key]
+    except:
+        return os.getenv(key)
+
+openai_client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
+anthropic_client = anthropic.Anthropic(api_key=get_secret("ANTHROPIC_API_KEY"))
 
 def split_audio(file_path, chunk_minutes=10):
     audio = AudioSegment.from_file(file_path)
@@ -51,7 +57,47 @@ def transcribe(file_path, language=None):
             os.unlink(chunk_path)
         return full_transcript.strip()
 
+def split_text_into_chunks(text, max_words=1500):
+    """Split text into chunks of roughly max_words words, breaking at sentence boundaries."""
+    sentences = text.replace('\n', ' ').split('. ')
+    chunks = []
+    current_chunk = []
+    current_word_count = 0
+
+    for sentence in sentences:
+        word_count = len(sentence.split())
+        if current_word_count + word_count > max_words and current_chunk:
+            chunks.append('. '.join(current_chunk) + '.')
+            current_chunk = [sentence]
+            current_word_count = word_count
+        else:
+            current_chunk.append(sentence)
+            current_word_count += word_count
+
+    if current_chunk:
+        chunks.append('. '.join(current_chunk))
+
+    return chunks
+
 def format_transcript(transcript):
+    """Clean up transcript in chunks to handle long sermons."""
+    words = transcript.split()
+    
+    # If short enough, process in one shot
+    if len(words) <= 1500:
+        return format_transcript_chunk(transcript)
+    
+    # Otherwise chunk it
+    text_chunks = split_text_into_chunks(transcript, max_words=1500)
+    cleaned_parts = []
+    
+    for i, chunk in enumerate(text_chunks):
+        st.info(f"Cleaning transcript part {i+1} of {len(text_chunks)}...")
+        cleaned_parts.append(format_transcript_chunk(chunk))
+    
+    return "\n\n".join(cleaned_parts)
+
+def format_transcript_chunk(text):
     message = anthropic_client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=4096,
@@ -71,7 +117,7 @@ Rules:
 Return only the cleaned transcript, nothing else.
 
 Raw transcript:
-{transcript}"""
+{text}"""
         }]
     )
     return message.content[0].text
@@ -410,12 +456,13 @@ if "authenticated" not in st.session_state:
 
 if not st.session_state.authenticated:
     pwd = st.text_input("Enter password", type="password")
-    if pwd == st.secrets["APP_PASSWORD"]:
+    if pwd == get_secret("APP_PASSWORD"):
         st.session_state.authenticated = True
         st.rerun()
     elif pwd:
         st.error("Wrong password")
     st.stop()
+
 st.title("🎧 ClearNote")
 st.markdown("Upload an audio recording and get structured notes and transcript.")
 
@@ -487,7 +534,6 @@ if ready and st.button("Generate Notes"):
 
     if input_method == "Upload a file" and uploaded_files and len(uploaded_files) > 1:
         whisper_lang = "en" if force_english else None
-        # Multi-file: transcribe each and stitch
         all_transcripts = []
         for i, uf in enumerate(uploaded_files):
             ext = os.path.splitext(uf.name)[1] or ".mp3"
