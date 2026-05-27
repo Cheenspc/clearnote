@@ -1,0 +1,11 @@
+venv/
+venv311/
+venv311_new/
+__pycache__/
+*.pyc
+.env
+cookies.txt
+*.mp3
+*.mp4
+*.m4a
+*.wav
