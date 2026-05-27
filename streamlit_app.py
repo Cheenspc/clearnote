@@ -403,6 +403,19 @@ def render_notes(data, audio_type):
 
 # --- STREAMLIT UI ---
 st.set_page_config(page_title="ClearNote", page_icon="🎧", layout="wide")
+
+# Password gate
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    pwd = st.text_input("Enter password", type="password")
+    if pwd == st.secrets["APP_PASSWORD"]:
+        st.session_state.authenticated = True
+        st.rerun()
+    elif pwd:
+        st.error("Wrong password")
+    st.stop()
 st.title("🎧 ClearNote")
 st.markdown("Upload an audio recording and get structured notes and transcript.")
 
